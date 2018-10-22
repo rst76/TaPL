@@ -2,13 +2,15 @@ type Info = String
 
 type Context = [(String, Binding)]
 
-data Binding = NameBind
+data Binding = NameBind deriving Show
 
 data Term
   = TmVar Info Int Int
   | TmAbs Info String Term
   | TmApp Info Term Term
+  deriving Show
 
+i = TmVar "" 0 1
 k = TmVar "" 1 2
 s = TmApp "" (TmApp "" (TmVar "" 2 3) (TmVar "" 0 3)) (TmApp "" (TmVar "" 1 3) (TmVar "" 0 3))
 
@@ -18,7 +20,7 @@ isNameBound ctx x = any ((== x) . fst) ctx
 pickFreshName :: Context -> String -> (Context, String)
 pickFreshName ctx x
   | isNameBound ctx x = pickFreshName ctx (x ++ "'")
-  | otherwise = ([(x, NameBind)], x)
+  | otherwise = ((x, NameBind) : ctx, x)
 
 ctxLength :: Context -> Int
 ctxLength = length
@@ -26,11 +28,11 @@ ctxLength = length
 index2name :: Info -> Context -> Int -> String
 index2name fi ctx n = fst (ctx !! n)
 
-printTm :: Context -> Term -> String
-printTm ctx (TmAbs fi x t1) = "(lambda " ++ show x' ++ ". " ++ printTm ctx' t1 ++ ")"
+showTm :: Context -> Term -> String
+showTm ctx (TmAbs fi x t1) = "(λ" ++ x' ++ ". " ++ showTm ctx' t1 ++ ")"
   where (ctx', x') = pickFreshName ctx x
-printTm ctx (TmApp fi t1 t2) = "(" ++ printTm ctx t1 ++ " " ++ printTm ctx t2 ++ ")"
-printTm ctx (TmVar fi x n)
+showTm ctx (TmApp fi t1 t2) = "(" ++ showTm ctx t1 ++ " " ++ showTm ctx t2 ++ ")"
+showTm ctx (TmVar fi x n)
   | ctxLength ctx == n = index2name fi ctx x
   | otherwise = "[bad index]"
 
@@ -68,3 +70,21 @@ eval1 ctx (TmApp fi t1 t2) = flip (TmApp fi) t2 <$> eval1 ctx t1
 
 eval :: Context -> Term -> Term
 eval ctx t = maybe t (eval ctx) (eval1 ctx t)
+
+main :: IO ()
+main = do
+  let ctx = [(s, NameBind) | s <- ["x", "y", "a", "b"]]
+  putStrLn $ showTm [] $ TmAbs "" "a" i
+  putStrLn $ showTm [] $ TmAbs "" "a" $ TmAbs "" "b" k
+  putStrLn $ showTm [] $ TmAbs "" "a" $ TmAbs "" "b" $ TmAbs "" "c" s
+  putStrLn $ showTm [] $ eval [] $ TmAbs "" "a" $ TmApp "" (TmApp "" (TmApp "" s k) k) i
+
+  putStrLn $ showTm ctx $ TmVar "" 0 4 -- x
+  putStrLn $ showTm ctx $ TmVar "" 1 4 -- y
+  putStrLn $ showTm ctx $ TmVar "" 2 4 -- a
+  putStrLn $ showTm ctx $ TmVar "" 3 4 -- b
+  putStrLn $ showTm ctx $ termShift 1 $ TmVar "" 0 3 -- y
+  putStrLn $ showTm ctx $ termShift 1 $ TmVar "" 1 3 -- a
+  putStrLn $ showTm ctx $ termShift 1 $ TmVar "" 2 3 -- b
+  putStrLn $ showTm ctx $ termShift 2 $ TmVar "" 0 2 -- a
+  putStrLn $ showTm ctx $ termShift 2 $ TmVar "" 1 2 -- b
